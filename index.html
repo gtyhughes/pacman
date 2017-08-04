@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<style type="text/css">
+		#gameArea{
+			position: relative;
+			height: 100vh;
+			width: 100vw;
+			background-color: lavender;
+		}
+		#pacman{
+			background-image: url(pacman.png);
+			background-size: 200% 100%;
+			background-position: 0 0;
+			width: 10vmin;
+			height: 10vmin;
+			position: absolute;
+			left: 500px;
+			top: 400px;
+			#transform: translate(-50%, -50%);
+		}
+	</style>
+	<script src="https://code.jquery.com/jquery-3.1.0.js"></script>
+
+	<script type="text/javascript">
+
+var game = null;
+
+$(document).ready(initializeGame);
+
+function initializeGame(){
+	game = new Game();
+	game.createAvatar();
+}
+
+function Game(){
+	this.avatar = null
+	this.gameArea = $("#gameArea");
+	this.init = function(){
+		this.attachKeypressHandlers();
+	}
+	this.start = function(){
+		this.avatar.startHeartbeat();
+	}
+	this.stop = function(){
+		this.avatar.endHeartbeat();
+	}
+	this.createAvatar = function(){
+		this.avatar = new Avatar();
+		var avatarElement = this.avatar.create();
+		this.gameArea.append(avatarElement);
+		this.avatar.init();
+	}
+	this.attachKeypressHandlers = function(){
+		$("body").on('keydown',this.handleKeyPress.bind(this));
+	}
+	this.handleKeyPress = function(){
+		var button = event.key;
+		this.avatar.handleKeyPress(button);
+	}
+	this.init();
+}
+
+function Avatar(){
+	this.domElement = null;
+	this.moveSpeedPerSecond = 200;
+	this.animateTime = 250;
+	this.animateTimer = null;
+	this.heartbeatTime = 15;
+	this.currentFrame = 0;
+	this.frameSize = 400;
+	this.moveDelta = this.moveSpeedPerSecond / (1000 / this.heartbeatTime);
+	this.direction = {
+		x: 1,
+		y: 0
+	}
+	this.position =  {
+		left: null,
+		top: null
+	}
+	this.heartbeatTimer = null;
+	this.animateFrame = function(){
+		this.currentFrame = 1 - this.currentFrame;
+		this.domElement.css('background-position', (this.currentFrame * 100) + '% 0%');
+	}
+	this.processHeartbeat = function(){
+		this.move();
+	}
+	this.startHeartbeat = function(){
+		this.endHeartbeat();
+		this.heartbeatTimer = setInterval(this.processHeartbeat.bind(this),this.heartbeatTime);
+		this.animateTimer = setInterval(this.animateFrame.bind(this),this.animateTime);
+	}
+	this.endHeartbeat = function(){
+		clearInterval(this.heartbeatTimer);
+		this.heartbeatTimer = null;
+		clearInterval(this.animateTimer);
+		this.animateTimer = null;
+	}
+	this.changeDirection = function(x,y){
+		this.direction.x = x;
+		this.direction.y = y;
+	}
+	this.handleKeyPress = function(buttonVal){
+		switch(buttonVal){
+			case 'w':
+				this.changeDirection(0,-1);
+				this.changeFacing(-90);
+				break;
+			case 's':
+				this.changeDirection(0,1);
+				this.changeFacing(90);
+				break;
+			case 'a':
+				this.changeDirection(-1,0);
+				this.changeFlip(-1);
+				break;
+			case 'd':
+				this.changeDirection(1,0);
+				this.changeFlip(1);
+				break;				
+
+		}		
+	}
+	this.changeFlip = function(direction){
+		this.domElement.css('transform','scaleX('+direction+')')
+	}
+	this.changeFacing = function(degrees){
+		this.domElement.css('transform','rotateZ('+degrees+'deg)');
+	}
+	this.move = function(){
+		var nextXPosition = this.position.left + (this.direction.x * this.moveDelta);
+		var nextYPosition = this.position.top + (this.direction.y * this.moveDelta);
+		this.domElement.css({
+			left: nextXPosition + 'px',
+			top: nextYPosition + 'px'
+		});
+		this.position.left = nextXPosition;
+		this.position.top = nextYPosition;
+	}
+	this.init = function(){
+		this.position = this.domElement.position();
+	}
+	this.create = function(){
+		this.domElement = $("<div>",{
+			id: 'pacman'
+		});
+		return this.domElement;
+	}
+}
+
+	</script>
+</head>
+<body>
+<div id="gameArea">
+</div>
+</body>
+</html>
