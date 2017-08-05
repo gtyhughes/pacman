@@ -9,6 +9,13 @@
 			width: 100vw;
 			background-color: lavender;
 		}
+		.pellet{
+			height: 2vmin;
+			width: 2vmin;
+			position: absolute;
+			background-color: white;
+			border-radius: 100%;
+		}
 		#pacman{
 			background-image: url(pacman.png);
 			background-size: 200% 100%;
@@ -32,13 +39,24 @@ $(document).ready(initializeGame);
 function initializeGame(){
 	game = new Game();
 	game.createAvatar();
+	var pelletInfo = [
+		{
+			p1: {x: 20, y: 20},
+			p2: {x: 200, y: 900},
+			distanceBetweenPellets: 80
+		}
+	];
+	game.createPellets(pelletInfo);
 }
 
 function Game(){
-	this.avatar = null
+	this.avatar = null;
+	this.pellets = [];
+	this.score = 0;
 	this.gameArea = $("#gameArea");
 	this.init = function(){
 		this.attachKeypressHandlers();
+		this.intro();
 	}
 	this.start = function(){
 		this.avatar.startHeartbeat();
@@ -46,11 +64,79 @@ function Game(){
 	this.stop = function(){
 		this.avatar.endHeartbeat();
 	}
+	this.intro = function(){
+		var sound = new Audio();
+		sound.src = 'pacman_beginning.wav';
+		sound.onpause = this.start.bind(this);
+		sound.play();
+
+	}
+	this.addScore = function(amount){
+		this.score+=amount;
+	}
+	this.handleCollision= function(pellet){
+		pellet.eaten();
+		this.addScore(10);
+		this.avatar.chomp();
+	}
+	this.removePellet = function(pellet){
+		this.pellets.splice(this.pellets.indexOf(pellet),1);
+	}
+	this.detectCollision = function(){
+		var avatar = this.avatar.position;
+		for(var i=0; i<this.pellets.length; i++){
+			var pellet = this.pellets[i].dimensions;
+// playerTop > fallerBottom
+// 				         ||
+// 			   playerLeft > fallerRight
+// 			             ||
+// 			   playerRight < fallerLeft
+// 			             ||
+// 			   playerBottom < fallerTop)
+			if(avatar.right < pellet.left
+						||
+				avatar.left > pellet.right
+						|| 
+				avatar.top > pellet.bottom
+						||
+				avatar.bottom < pellet.top
+			){
+				continue
+			} 
+			this.handleCollision(this.pellets[i]);
+		}
+	}
 	this.createAvatar = function(){
-		this.avatar = new Avatar();
+		this.avatar = new Avatar(this);
 		var avatarElement = this.avatar.create();
 		this.gameArea.append(avatarElement);
 		this.avatar.init();
+	}
+	this.createPellets = function(pellets){
+		for(var i=0; i<pellets.length; i++){
+			var pInfo = pellets[i];
+			var xDif = pInfo.p2.x - pInfo.p1.x;
+			var yDif = pInfo.p2.y - pInfo.p1.y;
+			var pelletLineDistance = Math.sqrt(Math.pow(xDif,2) + Math.pow(yDif,2));
+			var radianAngle = Math.atan(yDif/xDif);
+			var degreesAngle = (radianAngle * 180) / Math.PI;
+			var xDelta = Math.cos(radianAngle) * pInfo.distanceBetweenPellets;
+			var yDelta = Math.sin(radianAngle) * pInfo.distanceBetweenPellets;
+			var pelletCount = Math.floor(pelletLineDistance / pInfo.distanceBetweenPellets);
+			var currentX = pInfo.p1.x;
+			var currentY = pInfo.p1.y;
+			for(var j=0; j<pelletCount; j++){
+				var pellet = new Pellet(this);
+				var element = pellet.create(currentX, currentY);
+				currentX+=xDelta;
+				currentY+=yDelta;
+				this.gameArea.append(element);
+				this.pellets.push(pellet);
+				pellet.setDimensions();
+			}
+			
+			
+		}
 	}
 	this.attachKeypressHandlers = function(){
 		$("body").on('keydown',this.handleKeyPress.bind(this));
@@ -61,8 +147,44 @@ function Game(){
 	}
 	this.init();
 }
+function Pellet(parent){
+	this.parent = parent;
+	this.domElement = null;
+	this.dimensions = {
+		top: null,
+		right: null,
+		bottom: null,
+		left: null
 
-function Avatar(){
+	}
+	this.setDimensions = function(){
+		var position = this.domElement.position();
+		var width = this.domElement.width();
+		var height = this.domElement.height();
+		this.dimensions.top = position.top;
+		this.dimensions.bottom = position.top + height;
+		this.dimensions.left = position.left;
+		this.dimensions.right = position.left + width;
+	}
+	this.create = function(x,y){
+		this.domElement = $("<div>",{
+			class: 'pellet',
+			css: {
+				left: x+'px',
+				top: y+'px'
+			}
+		});
+		return this.domElement
+	}
+	this.eaten = function(){
+		this.domElement.remove();
+		this.parent.removePellet(this);
+	}
+}
+
+
+function Avatar(parent){
+	this.parent = parent;
 	this.domElement = null;
 	this.moveSpeedPerSecond = 200;
 	this.animateTime = 250;
@@ -77,8 +199,41 @@ function Avatar(){
 	}
 	this.position =  {
 		left: null,
-		top: null
+		top: null,
+		right: null,
+		bottom: null,
+		height: null,
+		width: null
 	}
+	this.updateDimensions = function(){
+		var position = this.domElement.position();
+		var width = this.domElement.width();
+		var height = this.domElement.height();
+		this.position.top = position.top;
+		this.position.bottom = position.top + height;
+		this.position.left = position.left;
+		this.position.right = position.left + width;
+		this.position.width = width;
+		this.position.height = height;		
+	}
+	this.startbackgroundSound = function(){
+		var backgroundSound = new Audio();
+		backgroundSound.src = 'siren.mp3';
+
+		this.stopbackgroundSound = function(){
+			playing = false;
+			backgroundSound.pause();
+		}
+		backgroundSound.onpause = function(){
+			if(playing){
+				backgroundSound.play();
+			}
+		}
+		var playing = true;
+		backgroundSound.play();
+	}
+
+	this.stopbackgroundSound = function(){}; //dummy function for first run
 	this.heartbeatTimer = null;
 	this.animateFrame = function(){
 		this.currentFrame = 1 - this.currentFrame;
@@ -89,14 +244,17 @@ function Avatar(){
 	}
 	this.startHeartbeat = function(){
 		this.endHeartbeat();
+		this.updateDimensions();
 		this.heartbeatTimer = setInterval(this.processHeartbeat.bind(this),this.heartbeatTime);
 		this.animateTimer = setInterval(this.animateFrame.bind(this),this.animateTime);
+		this.startbackgroundSound();
 	}
 	this.endHeartbeat = function(){
 		clearInterval(this.heartbeatTimer);
 		this.heartbeatTimer = null;
 		clearInterval(this.animateTimer);
 		this.animateTimer = null;
+		this.stopbackgroundSound();
 	}
 	this.changeDirection = function(x,y){
 		this.direction.x = x;
@@ -129,6 +287,12 @@ function Avatar(){
 	this.changeFacing = function(degrees){
 		this.domElement.css('transform','rotateZ('+degrees+'deg)');
 	}
+	this.chomp = function(){
+		var chompSound = new Audio();
+		chompSound.src = 'pacman_chomp.wav';
+		chompSound.play();
+
+	}
 	this.move = function(){
 		var nextXPosition = this.position.left + (this.direction.x * this.moveDelta);
 		var nextYPosition = this.position.top + (this.direction.y * this.moveDelta);
@@ -138,6 +302,9 @@ function Avatar(){
 		});
 		this.position.left = nextXPosition;
 		this.position.top = nextYPosition;
+		this.position.right = nextXPosition + this.position.width;
+		this.position.bottom = nextYPosition + this.position.height;
+		this.parent.detectCollision();
 	}
 	this.init = function(){
 		this.position = this.domElement.position();
